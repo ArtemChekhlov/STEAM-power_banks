@@ -1,6 +1,6 @@
 #include <SPI.h>
 #include <MFRC522.h>
-
+#include <Keypad.h> // Подключаем библиотеки
 
 // до ~ 80 строки - chatGPT(реализация словаря)
 
@@ -84,11 +84,26 @@ public:
 #define num_of_pows 6 //кол-во павер банков
 #define waiting_indicator_pin LED_BUILTIN //номер пина для светодиода, 
                                           //показывающего состояние ожидания дейстия
-#define zoomer_pin 1
+#define zoomer_pin A5
+
+/*
+//клава
+const byte ROWS = 4; // 4 строки
+const byte COLS = 4; // 4 столбца
+char keys[ROWS][COLS] = {
+  {'A','1','2','3'},
+  {'B','4','5','6'},
+  {'C','7','8','9'},
+  {'D','*','0','#'}
+}; 
+byte rowPins[ROWS] = {5, 4, 3, 2};
+byte colPins[COLS] =  {A0, A1, A2, A3}; 
+Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
+String keyboard_input = "";
+*/
 
 MFRC522 rfid(SS_PIN, RST_PIN);
 MFRC522 rfid2(SS_PIN2, RST_PIN);
-MFRC522::MIFARE_Key key;
 
 SimpleDict owes; //словарь вида UID: 0(не взял)/1(взял)
 
@@ -105,20 +120,39 @@ String cardUID = "";
 
 
 void setup() {
-  Serial.begin(9600);
+  
+  Serial.begin(115200);
   delay(200);
   Serial.println("Serial started");
+
+
+  pinMode(SS_PIN, OUTPUT);
+  pinMode(SS_PIN2, OUTPUT);
+  digitalWrite(SS_PIN, HIGH);
+  digitalWrite(SS_PIN2, HIGH);
+
+  digitalWrite(SS_PIN, HIGH);
+  digitalWrite(SS_PIN2, HIGH);
+  delay(10);
+
 
   SPI.begin();
   Serial.println("SPI init done");
 
+  selectReader(1);
   rfid.PCD_Init();
-  Serial.println("RFID1 init done");
+  byte v1 = rfid.PCD_ReadRegister(MFRC522::VersionReg);
+  Serial.print("RFID1 version: 0x");
+  Serial.println(v1, HEX);
 
+  selectReader(2);
   rfid2.PCD_Init();
-  Serial.println("RFID2 init done");
+  byte v2 = rfid2.PCD_ReadRegister(MFRC522::VersionReg);
+  Serial.print("RFID2 version: 0x");
+  Serial.println(v2, HEX);
 
-
+  selectReader(0); // оба выключены
+  Serial.println("RFID init done");
 
   Serial.println("начало работы");
 
@@ -133,9 +167,16 @@ void setup() {
     real_full[i] = 1;
   }
     //???
-  for (byte i = 0; i < num_of_pows; i++) {
-    key.keyByte[i] = 0xFF; // стандартный ключ
-  }
+  //for (byte i = 0; i < num_of_pows; i++) {
+    //key.keyByte[i] = 0xFF; // стандартный ключ
+  //}
+
+
+
+  byte v = rfid.PCD_ReadRegister(MFRC522::VersionReg);
+  Serial.print("Version: ");
+  Serial.println(v, HEX);
+
 
 
   pinMode(zoomer_pin, OUTPUT);
@@ -145,8 +186,20 @@ void setup() {
   inputString.reserve(5);
 }
 
-
-
+void selectReader(uint8_t which) {
+  // which: 1 -> rfid, 2 -> rfid2, 0 -> ни один
+  if (which == 1) {
+    digitalWrite(SS_PIN, LOW);
+    digitalWrite(SS_PIN2, HIGH);
+  } else if (which == 2) {
+    digitalWrite(SS_PIN, HIGH);
+    digitalWrite(SS_PIN2, LOW);
+  } else {
+    digitalWrite(SS_PIN, HIGH);
+    digitalWrite(SS_PIN2, HIGH);
+  }
+  delay(5); // пауза для стабилизации SPI-линий
+}
 void security_check(){
   //проверка соответствия full (состояния по протоколу) real_full(состоянию с датчиков)
   //перебираем ячейки
@@ -164,8 +217,6 @@ void security_check(){
     }
   }
 }
-
-
 // даём пользователю возможность что-то сделать
 void give_power(String UID){
   if (!owes.has(UID)){
@@ -217,40 +268,59 @@ void give_power(String UID){
     }
   }
 }
+void check() {
+  selectReader(1); // выбираем первый считыватель
 
-void check(){
-  digitalWrite(SS_PIN2, HIGH); // отключаем второй RFID
-  digitalWrite(SS_PIN, LOW);  // активируем первый RFID
-
-  //проверка приложили ли карточку к первому RFID
-  if ( ! rfid.PICC_IsNewCardPresent()) { 
-    return; 
-  } 
-  if ( ! rfid.PICC_ReadCardSerial()) { 
-    return; 
+  if (!rfid.PICC_IsNewCardPresent()) {
+    selectReader(0);
+    return;
+  }
+  if (!rfid.PICC_ReadCardSerial()) {
+    selectReader(0);
+    return;
   }
 
-
-  // Считываем UID в строку в 16-ричном виде
-  String cardUID = ""; // очищаем перед новым чтением
+  String cardUID = "";
   for (byte i = 0; i < rfid.uid.size; i++) {
-    if (rfid.uid.uidByte[i] < 0x10) cardUID += "0"; // добавляем ведущий 0
+    if (rfid.uid.uidByte[i] < 0x10) cardUID += "0";
     cardUID += String(rfid.uid.uidByte[i], HEX);
   }
+  cardUID.toUpperCase();
 
-  cardUID.toUpperCase(); // для удобства — делаем буквы заглавными
+  Serial.println("RFID1 UID считан: " + cardUID);
 
-  
-  Serial.println("UID считан: " + cardUID); // можно вывести для отладки
-
-
-  // Отключаем карту
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
-  rfid.PCD_Init();  // сброс считывателя
+  selectReader(0);
 
+  give_power(cardUID);
+}
+void check2() {
+  selectReader(2); // выбираем второй считыватель
 
-  give_power(cardUID); // даём пользователю возможность что-то сделать
+  if (!rfid2.PICC_IsNewCardPresent()) {
+    selectReader(0);
+    return;
+  }
+  if (!rfid2.PICC_ReadCardSerial()) {
+    selectReader(0);
+    return;
+  }
+
+  String cardUID = "";
+  for (byte i = 0; i < rfid2.uid.size; i++) {
+    if (rfid2.uid.uidByte[i] < 0x10) cardUID += "0";
+    cardUID += String(rfid2.uid.uidByte[i], HEX);
+  }
+  cardUID.toUpperCase();
+
+  Serial.println("RFID2 UID считан: " + cardUID);
+
+  rfid2.PICC_HaltA();
+  rfid2.PCD_StopCrypto1();
+  selectReader(0);
+
+  give_power(cardUID);
 }
  //допилить!!!
 void update_real_full(){ //обновляем реальное состояние хранилища
@@ -270,46 +340,6 @@ void update_real_full(){ //обновляем реальное состояни�
       Serial.println("updated");
     }
 }
-
-
-void check2(){
-  digitalWrite(SS_PIN, HIGH); // отключаем первый RFID
-  digitalWrite(SS_PIN2, LOW); // включаем второй RFID
-
-  //проверка приложили ли карточку ко второму RFID
-  if ( ! rfid2.PICC_IsNewCardPresent()) { 
-    return; 
-  } 
-  if ( ! rfid2.PICC_ReadCardSerial()) { 
-    return; 
-  }
-
-
-  // Считываем UID в строку в 16-ричном виде
-  String cardUID = ""; // очищаем перед новым чтением
-  for (byte i = 0; i < rfid2.uid.size; i++) {
-    if (rfid2.uid.uidByte[i] < 0x10) cardUID += "0"; // добавляем ведущий 0
-    cardUID += String(rfid2.uid.uidByte[i], HEX);
-  }
-
-  cardUID.toUpperCase(); // для удобства — делаем буквы заглавными
-
-  
-  Serial.println("rfid_2 UID считан: " + cardUID); // можно вывести для отладки
-
-
-  // Отключаем карту
-  rfid2.PICC_HaltA();
-  rfid2.PCD_StopCrypto1();
-  rfid2.PCD_Init();  // сброс считывателя
-
-
-  give_power(cardUID); // даём пользователю возможность что-то сделать
-}
-
-
-
-
 void serialEvent() {//считывание Serial для тестирования update_full
   while (Serial.available()) {
     // get the new byte:
@@ -323,25 +353,53 @@ void serialEvent() {//считывание Serial для тестировани�
     }
   }
 }
-
-
-
-void loop() {
+void serial_check(){
   if (stringComplete){
     if (inputString == "auth\n"){
       Serial.println("auth!");
       inputString = "";
       stringComplete = false;
       give_power("B6C77905");
-    }
-    else{
+    }else{
       update_real_full();
       inputString = "";
       stringComplete = false;
     }
     // clear the string:
   }
+}
+/*
+void keyboard_check(){
+  char key = keypad.getKey();
+  if (key){
+    if (key == '#'){
+      keyboard_input = "";
+    }else{
+      keyboard_input = keyboard_input + key;
+    } 
+    if (keyboard_input.length() == 6){
+      Serial.print("password entered:");
+      Serial.println(keyboard_input);
+      keyboard_input = "";
+      
+    }
+  }
+}
+*/
+void check_new(){
+  digitalWrite(SS_PIN, LOW);
+  if (!rfid.PICC_IsNewCardPresent()) return;
+  if (!rfid.PICC_ReadCardSerial()) return;
 
+  Serial.print("UID: ");
+  for (byte i = 0; i < rfid.uid.size; i++) {
+    Serial.print(rfid.uid.uidByte[i] < 0x10 ? " 0" : " ");
+    Serial.print(rfid.uid.uidByte[i], HEX);
+  }
+  Serial.println();
+}
+
+void loop() {
+  check();
   delay(100);
-  security_check();
 }
