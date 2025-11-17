@@ -2,58 +2,90 @@
 #include <MFRC522.h>
 #include <Keypad.h>
 
-// ---------- СЛОВАРЬ UID → значение (0/1) ----------
-
-struct Pair {
-  String key;
+struct Entry {
+  String key1;  // основной ключ
+  String key2;  // дополнительный ключ (может быть пустым)
   int value;
 };
 
 class SimpleDict {
-  static const int MAX_SIZE = 50;
-  Pair data[MAX_SIZE];
+  static const int MAX_SIZE = 10;
+  Entry data[MAX_SIZE];
   int size = 0;
 
 public:
-  void put(String key, int value) {
+  // Добавление новой записи (двойной ключ)
+  void put(String key1, int value, String key2 = "") {
+    // Проверяем, существует ли запись с любым из ключей
     for (int i = 0; i < size; i++) {
-      if (data[i].key == key) {
+      if (data[i].key1 == key1 || data[i].key2 == key1 ||
+          data[i].key1 == key2 || data[i].key2 == key2) {
         data[i].value = value;
+        if (key2 != "") data[i].key2 = key2;
         return;
       }
     }
+
+    // Добавляем новую запись
     if (size < MAX_SIZE) {
-      data[size].key = key;
+      data[size].key1 = key1;
+      data[size].key2 = key2;
       data[size].value = value;
       size++;
     }
   }
 
+  // Получение значения по любому ключу
   int get(String key) {
     for (int i = 0; i < size; i++) {
-      if (data[i].key == key) return data[i].value;
+      if (data[i].key1 == key || data[i].key2 == key) return data[i].value;
     }
     return -1;
   }
 
+  // Проверка наличия ключа
   bool has(String key) {
     for (int i = 0; i < size; i++) {
-      if (data[i].key == key) return true;
+      if (data[i].key1 == key || data[i].key2 == key) return true;
     }
     return false;
+  }
+
+  // Добавление второго ключа к уже существующему первому
+  void addAlias(String existingKey, String aliasKey) {
+    for (int i = 0; i < size; i++) {
+      if (data[i].key1 == existingKey || data[i].key2 == existingKey) {
+        data[i].key2 = aliasKey;
+        return;
+      }
+    }
+  }
+
+  // 🔹 Новая функция: изменить значение по любому ключу
+  bool change(String key, int newValue) {
+    for (int i = 0; i < size; i++) {
+      if (data[i].key1 == key || data[i].key2 == key) {
+        data[i].value = newValue;
+        return true;
+      }
+    }
+    return false; // если ключ не найден
   }
 
   void printAll() {
     Serial.println("=== Содержимое словаря ===");
     for (int i = 0; i < size; i++) {
-      Serial.print(data[i].key);
+      Serial.print(data[i].key1);
+      if (data[i].key2 != "") {
+        Serial.print(" / ");
+        Serial.print(data[i].key2);
+      }
       Serial.print(": ");
       Serial.println(data[i].value);
     }
     Serial.println("==========================");
   }
 };
-
 
 // -----------------настройки таймаута (ms)--------------------
 // Параметры
@@ -87,13 +119,13 @@ bool alarm = false;
 const byte ROWS = 4; // 4 строки
 const byte COLS = 4; // 4 столбца
 char keys[ROWS][COLS] = {
-  {'A','1','2','3'},
-  {'B','4','5','6'},
-  {'C','7','8','9'},
-  {'D','*','0','#'}
+  {'1','2','3', 'A'},
+  {'4','5','6', 'B'},
+  {'7','8','9', 'C'},
+  {'*','0','#', 'D'}
 }; 
-byte rowPins[ROWS] = {5, 4, 3, 2};
-byte colPins[COLS] = {A0, A1, A2, 6};
+byte rowPins[ROWS] = {2, 3, 4, 5};
+byte colPins[COLS] = {6, A2, A1, A0};
 Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
 String keyboard_input = "";
 
@@ -127,6 +159,7 @@ void security_check() {
   bool flag = false;
   for (int i = 0; i < NUM_OF_POWS; i++) {
     if (full[i] != real_full[i]) {
+
       Serial.println("⚠️ ALARM! Несоответствие состояний!");
       flag = true;
       alarm = true;
@@ -320,6 +353,7 @@ void serial_check() {
 void keyboard_check(){
   char key = keypad.getKey();
   if (key){
+    Serial.println(key);
     if (key == '#'){
       Serial.println("Clearing");
       keyboard_input = "";
@@ -386,7 +420,8 @@ void setup() {
   pinMode(ZOOMER_PIN, OUTPUT);
   pinMode(WAIT_LED, OUTPUT);
 
-  owes.put("A25F6206", 0);
+  owes.put("A25F6206", 0, "111111");
+  owes.put("B6E9FC4D", 0, "123456");
 
 
   Serial.println("Начало работы");
@@ -399,6 +434,6 @@ void loop() {
   pollReader(rfid1, 1, st1);
   update_real_full();
   security_check();
-  //keyboard_check();
+  keyboard_check();
   delay(100);
 }
