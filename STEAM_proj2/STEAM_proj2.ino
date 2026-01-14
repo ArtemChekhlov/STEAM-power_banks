@@ -1,6 +1,8 @@
 #include <SPI.h>
 #include <MFRC522.h>
 #include <Keypad.h>
+// Настройка пинов для SD модуля
+#define SD_CS_PIN 4  // Chip Select пин для SD карты
 
 struct Entry {
   String key1;  // основной ключ
@@ -396,6 +398,7 @@ bool checkPasswordInFileWithPasswords(String passwordToCheck) {
       break;  // Пароль найден, выходим из цикла
     }
   }
+  passwordFile.close();
 }
 
 // ---------- SETUP / LOOP ----------
