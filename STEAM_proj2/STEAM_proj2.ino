@@ -372,6 +372,31 @@ void keyboard_check(){
     }
   }
 }
+// функция проверки пароля в файле
+bool checkPasswordInFileWithPasswords(String passwordToCheck) {  
+  // Открываем файл для чтения
+  passwordFile = SD.open("passwords.txt", FILE_READ);  
+  Serial.println("Поиск в базе паролей...");
+  bool passwordFound = false;
+  
+  // Читаем файл построчно
+  while (passwordFile.available()) {
+    String line = passwordFile.readStringUntil('\n');
+    line.trim();
+    
+    // Пропускаем пустые строки
+    if (line.length() == 0) {
+      continue;
+    }
+    
+    // Сравниваем пароль
+    if (line.equals(passwordToCheck)) {
+      passwordFound = true;
+      return true;
+      break;  // Пароль найден, выходим из цикла
+    }
+  }
+}
 
 // ---------- SETUP / LOOP ----------
 
