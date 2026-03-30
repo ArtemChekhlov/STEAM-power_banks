@@ -461,8 +461,8 @@ void setup() {
   }
 
   powsUIDs[0] = "129AA104";
-  powsUIDs[1] = "129AA104";
-  powsUIDs[2] = "129AA104";
+  powsUIDs[1] = "A25F6206";
+  powsUIDs[2] = "09B0C801";
 
 
   pinMode(ZOOMER_PIN, OUTPUT);
