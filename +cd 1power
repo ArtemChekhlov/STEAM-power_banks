@@ -163,7 +163,7 @@ void security_check() {
   for (int i = 0; i < NUM_OF_POWS; i++) {
     if (full[i] != real_full[i]) flag = true;
   }
-  alarm = flag;  // установить один раз после цикла
+  alarm = flag;
   digitalWrite(ZOOMER_PIN, flag ? HIGH : LOW);
   if (flag) Serial.println("⚠️ ALARM!");
 }
