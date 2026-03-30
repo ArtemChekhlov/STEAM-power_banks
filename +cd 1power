@@ -109,7 +109,7 @@ ReaderState st1, st2;
 SimpleDict owes;
 
 
-#define NUM_OF_POWS 6
+#define NUM_OF_POWS 3
 
 bool full[NUM_OF_POWS];
 bool real_full[NUM_OF_POWS];
@@ -161,17 +161,11 @@ void selectReader(uint8_t n) {
 void security_check() {
   bool flag = false;
   for (int i = 0; i < NUM_OF_POWS; i++) {
-    if (full[i] != real_full[i]) {
-
-      Serial.println("⚠️ ALARM! Несоответствие состояний!");
-      flag = true;
-      alarm = true;
-    }
-  if (!flag){
-    alarm = false;
+    if (full[i] != real_full[i]) flag = true;
   }
-  }
+  alarm = flag;  // установить один раз после цикла
   digitalWrite(ZOOMER_PIN, flag ? HIGH : LOW);
+  if (flag) Serial.println("⚠️ ALARM!");
 }
 
 void update_real_full_old() {
@@ -312,10 +306,26 @@ String pollReader(MFRC522 &reader, uint8_t which, ReaderState &st) {
   selectReader(0);
 }
 void update_real_full(){
-  if (inArray(pollReader(rfid1, 1, st1), powsUIDs, NUM_OF_POWS)){
-    real_full[0] = true;
-  }else{
-    real_full[0] = false;
+  String uid = pollReader(rfid1, 1, st1);
+  
+  for (int i = 0; i < NUM_OF_POWS; i++) {
+    real_full[i] = false;
+  }
+  
+  if (uid != "00000000" && uid.length() > 0) {
+    for (int i = 0; i < NUM_OF_POWS; i++) {
+      if (uid == powsUIDs[i]) {
+        real_full[i] = true;
+        Serial.print("🔍 Slot ");
+        Serial.print(i);
+        Serial.print(" -> FULL (UID: ");
+        Serial.print(uid);
+        Serial.println(")");
+        return;
+      }
+    }
+    Serial.print("⚠️ Неизвестный UID: ");
+    Serial.println(uid);
   }
 }
 void checkReader(MFRC522 &reader, uint8_t which){
@@ -373,9 +383,6 @@ void keyboard_check(){
         } else {
           Serial.println("❌ Неверный пароль!");
         }
-      give_power(keyboard_input);
-
-
 
       keyboard_input = "";
 
@@ -456,9 +463,6 @@ void setup() {
   powsUIDs[0] = "129AA104";
   powsUIDs[1] = "129AA104";
   powsUIDs[2] = "129AA104";
-  powsUIDs[3] = "129AA104";
-  powsUIDs[4] = "129AA104";
-  powsUIDs[5] = "129AA104";
 
 
   pinMode(ZOOMER_PIN, OUTPUT);
@@ -472,6 +476,7 @@ void setup() {
   inputString.reserve(16);
 }
 void loop() {
+  serial_check();
   if (!alarm){
      checkReader(rfid2, 2);
   }
