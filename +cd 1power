@@ -3,7 +3,7 @@
 #include <Keypad.h>
 #include <SD.h>
 // Настройка пинов для SD модуля
-#define SD_CS_PIN 4  // Chip Select пин для SD карты
+#define SD_CS_PIN 31  // Chip Select пин для SD карты
 
 struct Entry {
   String key1;  // основной ключ
@@ -139,7 +139,7 @@ String keyboard_input = "";
 #define SS_PIN2 10
 #define RST_PIN1 9
 #define RST_PIN2 7
-#define ZOOMER_PIN A0
+#define ZOOMER_PIN A3
 #define WAIT_LED LED_BUILTIN
 
 MFRC522 rfid1(SS_PIN1, RST_PIN1);
