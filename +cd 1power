@@ -2,12 +2,14 @@
 #include <MFRC522.h>
 #include <Keypad.h>
 #include <SD.h>
-// Настройка пинов для SD модуля
-#define SD_CS_PIN 31  // Chip Select пин для SD карты
 
+// ---------------- SD ----------------
+#define SD_CS_PIN 31  
+
+// ---------------- СЛОВАРЬ ----------------
 struct Entry {
-  String key1;  // основной ключ
-  String key2;  // дополнительный ключ (может быть пустым)
+  String key1;
+  String key2;
   int value;
 };
 
@@ -17,19 +19,13 @@ class SimpleDict {
   int size = 0;
 
 public:
-  // Добавление новой записи (двойной ключ)
   void put(String key1, int value, String key2 = "") {
-    // Проверяем, существует ли запись с любым из ключей
     for (int i = 0; i < size; i++) {
-      if (data[i].key1 == key1 || data[i].key2 == key1 ||
-          data[i].key1 == key2 || data[i].key2 == key2) {
+      if (data[i].key1 == key1 || data[i].key2 == key1) {
         data[i].value = value;
-        if (key2 != "") data[i].key2 = key2;
         return;
       }
     }
-
-    // Добавляем новую запись
     if (size < MAX_SIZE) {
       data[size].key1 = key1;
       data[size].key2 = key2;
@@ -38,124 +34,87 @@ public:
     }
   }
 
-  // Получение значения по любому ключу
-  int get(String key) {
-    for (int i = 0; i < size; i++) {
-      if (data[i].key1 == key || data[i].key2 == key) return data[i].value;
-    }
-    return -1;
-  }
-
-  // Проверка наличия ключа
   bool has(String key) {
     for (int i = 0; i < size; i++) {
       if (data[i].key1 == key || data[i].key2 == key) return true;
     }
     return false;
   }
-
-  // Добавление второго ключа к уже существующему первому
-  void addAlias(String existingKey, String aliasKey) {
-    for (int i = 0; i < size; i++) {
-      if (data[i].key1 == existingKey || data[i].key2 == existingKey) {
-        data[i].key2 = aliasKey;
-        return;
-      }
-    }
-  }
-
-  // 🔹 Новая функция: изменить значение по любому ключу
-  bool change(String key, int newValue) {
-    for (int i = 0; i < size; i++) {
-      if (data[i].key1 == key || data[i].key2 == key) {
-        data[i].value = newValue;
-        return true;
-      }
-    }
-    return false; // если ключ не найден
-  }
-
-  void printAll() {
-    Serial.println("=== Содержимое словаря ===");
-    for (int i = 0; i < size; i++) {
-      Serial.print(data[i].key1);
-      if (data[i].key2 != "") {
-        Serial.print(" / ");
-        Serial.print(data[i].key2);
-      }
-      Serial.print(": ");
-      Serial.println(data[i].value);
-    }
-    Serial.println("==========================");
-  }
 };
-
-// -----------------настройки таймаута (ms)--------------------
-// Параметры
-const unsigned long PRESENCE_TIMEOUT = 1200; // ms для определения что карта ушла
-const uint8_t MAX_MISSES = 4;                // сколько подряд неудачных опросов считаем "ушла"
-const uint8_t READ_ATTEMPTS = 3;             // сколько попыток ReadCardSerial за цикл
-
-struct ReaderState {
-  bool present = false;
-  String uid = "";
-  unsigned long lastSeen = 0;
-  uint8_t misses = 0;
-};
-
-ReaderState st1, st2;
-//----------- МАССИВЫ И ПЕРЕМЕННЫЕ -----
 
 SimpleDict owes;
 
-
+// ---------------- ПАВЕРЫ ----------------
 #define NUM_OF_POWS 3
-
 bool full[NUM_OF_POWS];
 bool real_full[NUM_OF_POWS];
 String powsUIDs[NUM_OF_POWS];
 
-String inputString = "";
-bool stringComplete = false;
-bool alarm = false;
-//---------- КЛАВА -------------
-const byte ROWS = 4; // 4 строки
-const byte COLS = 4; // 4 столбца
-char keys[ROWS][COLS] = {
-  {'1','2','3', 'A'},
-  {'4','5','6', 'B'},
-  {'7','8','9', 'C'},
-  {'*','0','#', 'D'}
-}; 
-byte rowPins[ROWS] = {2, 3, 4, 5};
-byte colPins[COLS] = {6, A2, A1, A0};
-Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
-String keyboard_input = "";
-
-
-// ---------- ПОДКЛЮЧЕНИЕ RFID ----------
-
+// ---------------- RFID ----------------
 #define SS_PIN1 8
 #define SS_PIN2 10
 #define RST_PIN1 9
 #define RST_PIN2 7
-#define ZOOMER_PIN A3
-#define WAIT_LED LED_BUILTIN
 
 MFRC522 rfid1(SS_PIN1, RST_PIN1);
 MFRC522 rfid2(SS_PIN2, RST_PIN2);
 
-// ---------- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ----------
-bool inArray(String value, String array[], int size) {
-  for (int i = 0; i < size; i++) {
-    if (array[i] == value) return true;
-  }
-  return false;
-}
+// ---------------- КЛАВА ----------------
+const byte ROWS = 4;
+const byte COLS = 4;
+
+char keys[ROWS][COLS] = {
+  {'1','2','3','A'},
+  {'4','5','6','B'},
+  {'7','8','9','C'},
+  {'*','0','#','D'}
+};
+
+// 🔴 ТВОЯ РАСПИНОВКА
+byte rowPins[ROWS] = {2, 3, 4, 5};
+byte colPins[COLS] = {6, A2, A1, A0};
+
+Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+
+String keyboard_input = "";
+
+// ---------------- ЗУММЕР ----------------
+#define ZOOMER_PIN A3
+
+bool alarm = false;
+
+// ---------------- ФУНКЦИИ ----------------
+
 void selectReader(uint8_t n) {
   digitalWrite(SS_PIN1, n == 1 ? LOW : HIGH);
   digitalWrite(SS_PIN2, n == 2 ? LOW : HIGH);
   delay(5);
+}
+
+bool tryReadUID(MFRC522 &reader, String &outUID) {
+  if (reader.PICC_IsNewCardPresent() && reader.PICC_ReadCardSerial()) {
+    outUID = "";
+    for (byte i = 0; i < reader.uid.size; i++) {
+      if (reader.uid.uidByte[i] < 0x10) outUID += "0";
+      outUID += String(reader.uid.uidByte[i], HEX);
+    }
+    outUID.toUpperCase();
+    return true;
+  }
+  return false;
+}
+
+void update_real_full() {
+  String uid;
+  selectReader(1);
+
+  if (tryReadUID(rfid1, uid)) {
+    for (int i = 0; i < NUM_OF_POWS; i++) {
+      real_full[i] = (uid == powsUIDs[i]);
+    }
+  }
+
+  selectReader(0);
 }
 
 void security_check() {
@@ -165,294 +124,47 @@ void security_check() {
   }
   alarm = flag;
   digitalWrite(ZOOMER_PIN, flag ? HIGH : LOW);
-  if (flag) Serial.println("⚠️ ALARM!");
 }
 
-void update_real_full_old() {
-  if (stringComplete) {
-    Serial.println("updating...");
-    for (int i = 0; i < NUM_OF_POWS && i < inputString.length(); i++) {
-      real_full[i] = (inputString[i] == '1');
-    }
-    Serial.print("real_full: ");
-    for (int i = 0; i < NUM_OF_POWS; i++) Serial.print(real_full[i]);
-    Serial.println();
-    inputString = "";
-    stringComplete = false;
-  }
-}
-
-void serialEvent() {
-  while (Serial.available()) {
-    char inChar = (char)Serial.read();
-    inputString += inChar;
-    if (inChar == '\n') stringComplete = true;
-  }
-}
-// ---------- ОСНОВНАЯ ЛОГИКА ----------
-void give_power(String UID) {
-  if (!owes.has(UID)) {
-    Serial.println("❌ Пользователь не идентифицирован");
-    return;
+// ---------------- SD ----------------
+bool checkPassword(String pass) {
+  File f = SD.open("passwords.txt");
+  if (!f) {
+    Serial.println("Ошибка SD!");
+    return false;
   }
 
-  Serial.println("✅ Пользователь идентифицирован");
-
-  bool f = true;
-  bool prev_real_full[NUM_OF_POWS];
-  for (int i = 0; i < NUM_OF_POWS; i++) prev_real_full[i] = real_full[i];
-
-  while (f) {
-    serialEvent();
-    update_real_full();
-
-    for (int i = 0; i < NUM_OF_POWS; i++) {
-      if ((real_full[i] == (owes.get(UID) > 0)) && (prev_real_full[i] != real_full[i])) {
-        Serial.println("⚙️ ВЗЯЛИ/ОТДАЛИ ПАВЕР");
-        full[i] = real_full[i];
-
-        if (full[i]) {
-          Serial.println(UID + " сдал павер");
-          owes.put(UID, 0);
-        } else {
-          Serial.println(UID + " взял павер");
-          owes.put(UID, 1);
-        }
-
-        f = false;
-        break;
-      }
-    }
-    security_check();
-    delay(500);
-  }
-}
-// Вспомогательная функция: пытаемся прочитать UID с несколькими попытками
-bool tryReadUID(MFRC522 &reader, String &outUID) {
-  // несколько попыток с небольшими паузами — повышает устойчивость
-  for (uint8_t attempt = 0; attempt < READ_ATTEMPTS; attempt++) {
-    // Сначала пробуем ReadCardSerial напрямую (работает, если карта уже в поле)
-    if (reader.PICC_ReadCardSerial()) {
-      outUID = "";
-      for (byte i = 0; i < reader.uid.size; i++) {
-        if (reader.uid.uidByte[i] < 0x10) outUID += "0";
-        outUID += String(reader.uid.uidByte[i], HEX);
-      }
-      outUID.toUpperCase();
-      // НЕ вызваем HaltA() — оставляем карту "в поле"
-      return true;
-    }
-
-    // Если прямой read не сработал, попробуем "обычный" путь: проверить new card и затем читать
-    if (reader.PICC_IsNewCardPresent()) {
-      if (reader.PICC_ReadCardSerial()) {
-        outUID = "";
-        for (byte i = 0; i < reader.uid.size; i++) {
-          if (reader.uid.uidByte[i] < 0x10) outUID += "0";
-          outUID += String(reader.uid.uidByte[i], HEX);
-        }
-        outUID.toUpperCase();
-        return true;
-      }
-    }
-
-    delay(20); // небольшая пауза между попытками
-  }
-  return false;
-}
-
-String pollReader(MFRC522 &reader, uint8_t which, ReaderState &st) {
-  selectReader(which);
-
-  String readUID;
-  bool got = tryReadUID(reader, readUID);
-
-  if (got) {
-    // Успешное чтение — обновляем состояние
-    st.present = true;
-    st.uid = readUID;
-    st.lastSeen = millis();
-    st.misses = 0;
-    Serial.print("R"); Serial.print(which); Serial.print(" present UID: "); Serial.println(readUID);
-    return readUID;
-  } else {
-    // Не смогли прочитать в этом цикле
-    if (st.present) {
-      st.misses++;
-      // если накопились пропуски или превысил таймаут — считаем карту ушедшей
-      if (st.misses >= MAX_MISSES || millis() - st.lastSeen > PRESENCE_TIMEOUT) {
-        // Корректно завершить только если уверены, что карта ушла.
-        // reader.PICC_HaltA();  // НЕ обязательно, но можно вызывать
-        reader.PCD_StopCrypto1();
-        st.present = false;
-        st.uid = "";
-        st.misses = 0;
-      }
-    } else {
-      // карта и так считается отсутствующей — ничего не делаем
-    }
-
-    // Если ридер вообще перестал отвечать (много циклов без чтений), можно реинициализировать:
-    static unsigned long lastReinit[3] = {0,0,0}; // индекс 1 и 2 используем
-    if (millis() - lastReinit[which] > 5000 && st.misses >= (MAX_MISSES + 4)) {
-      Serial.print("R"); Serial.print(which); Serial.println(" — реинициализация модуля (восстановление)");
-      reader.PCD_Init();
-      lastReinit[which] = millis();
-      delay(50);
-    }
-    return "00000000";
-  }
-
-  selectReader(0);
-}
-void update_real_full(){
-  String uid = pollReader(rfid1, 1, st1);
-  
-  for (int i = 0; i < NUM_OF_POWS; i++) {
-    real_full[i] = false;
-  }
-  
-  if (uid != "00000000" && uid.length() > 0) {
-    for (int i = 0; i < NUM_OF_POWS; i++) {
-      if (uid == powsUIDs[i]) {
-        real_full[i] = true;
-        Serial.print("🔍 Slot ");
-        Serial.print(i);
-        Serial.print(" -> FULL (UID: ");
-        Serial.print(uid);
-        Serial.println(")");
-        return;
-      }
-    }
-    Serial.print("⚠️ Неизвестный UID: ");
-    Serial.println(uid);
-  }
-}
-void checkReader(MFRC522 &reader, uint8_t which){
-  selectReader(which);
-  if (!reader.PICC_IsNewCardPresent()) { selectReader(0); return; }
-  if (!reader.PICC_ReadCardSerial()) { selectReader(0); return; }
-
-  String cardUID = "";
-  for (byte i = 0; i < reader.uid.size; i++) {
-    if (reader.uid.uidByte[i] < 0x10) cardUID += "0";
-    cardUID += String(reader.uid.uidByte[i], HEX);
-  }
-  cardUID.toUpperCase();
-
-  Serial.print("RFID");
-  Serial.print(which);
-  Serial.print(" UID считан: ");
-  Serial.println(cardUID);
-
-  reader.PICC_HaltA();
-  reader.PCD_StopCrypto1();
-  selectReader(0);
-
-  give_power(cardUID);
-}
-
-void serial_check() {
-  if (!stringComplete) return;
-  if (inputString == "auth\n") {
-    Serial.println("auth!");
-    inputString = "";
-    stringComplete = false;
-    give_power("B6C77905");
-  } else {
-    update_real_full();
-  }
-}
-void keyboard_check(){
-  char key = keypad.getKey();
-  if (key){
-    Serial.println(key);
-    if (key == '#'){
-      Serial.println("Clearing");
-      keyboard_input = "";
-    }else{
-      keyboard_input = keyboard_input + key;
-    } 
-    if (keyboard_input.length() == 6){
-      Serial.print("password entered:");
-      Serial.println(keyboard_input);
-      // Проверка пароля
-        if (checkPasswordInFileWithPasswords(keyboard_input)) {
-          // Если пароль верный, даем павер
-          give_power(keyboard_input);
-        } else {
-          Serial.println("❌ Неверный пароль!");
-        }
-
-      keyboard_input = "";
-
-    }
-  }
-}
-// функция проверки пароля в файле
-bool checkPasswordInFileWithPasswords(String passwordToCheck) {  
-  // Открываем файл для чтения
-  File passwordFile = SD.open("passwords.txt", FILE_READ);  
-  Serial.println("Поиск в базе паролей...");
-  bool passwordFound = false;
-
-  // Читаем файл построчно
-  while (passwordFile.available()) {
-    String line = passwordFile.readStringUntil('\n');
+  while (f.available()) {
+    String line = f.readStringUntil('\n');
     line.trim();
-
-    // Пропускаем пустые строки
-    if (line.length() == 0) {
-      continue;
-    }
-
-    // Сравниваем пароль
-    if (line.equals(passwordToCheck)) {
-      passwordFound = true;
+    if (line == pass) {
+      f.close();
       return true;
-      break;  // Пароль найден, выходим из цикла
     }
   }
-  passwordFile.close();
+
+  f.close();
   return false;
 }
 
-// ---------- SETUP / LOOP ----------
-
+// ---------------- SETUP ----------------
 void setup() {
   Serial.begin(115200);
-  delay(200);
-  Serial.println("Serial started");
 
   pinMode(SS_PIN1, OUTPUT);
   pinMode(SS_PIN2, OUTPUT);
-  digitalWrite(SS_PIN1, HIGH);
-  digitalWrite(SS_PIN2, HIGH);
+  pinMode(ZOOMER_PIN, OUTPUT);
 
   SPI.begin();
-  delay(50);
 
-  // Инициализация обоих считывателей
-  selectReader(1);
-  rfid1.PCD_Init();
-  delay(50);
-  Serial.print("RFID1 version: 0x");
-  Serial.println(rfid1.PCD_ReadRegister(MFRC522::VersionReg), HEX);
-
-  selectReader(2);
-  rfid2.PCD_Init();
-  delay(50);
-  Serial.print("RFID2 version: 0x");
-  Serial.println(rfid2.PCD_ReadRegister(MFRC522::VersionReg), HEX);
-
+  selectReader(1); rfid1.PCD_Init();
+  selectReader(2); rfid2.PCD_Init();
   selectReader(0);
-  Serial.println("RFID init done");
 
-  // Инициализация cd карты
   if (!SD.begin(SD_CS_PIN)) {
-    Serial.println("Ошибка инициализации SD карты!");
+    Serial.println("❌ SD не работает");
   } else {
-    Serial.println("SD карта инициализирована");
+    Serial.println("✅ SD OK");
   }
 
   for (int i = 0; i < NUM_OF_POWS; i++) {
@@ -464,25 +176,43 @@ void setup() {
   powsUIDs[1] = "A25F6206";
   powsUIDs[2] = "09B0C801";
 
-
-  pinMode(ZOOMER_PIN, OUTPUT);
-  pinMode(WAIT_LED, OUTPUT);
-
-  owes.put("A25F6206", 0, "111111");
-  owes.put("B6E9FC4D", 0, "123456");
-
-
-  Serial.println("Начало работы");
-  inputString.reserve(16);
+  Serial.println("🚀 Система запущена");
 }
+
+// ---------------- LOOP ----------------
 void loop() {
-  serial_check();
-  if (!alarm){
-     checkReader(rfid2, 2);
+
+  // 🔴 ТЕСТ КЛАВИАТУРЫ
+  char key = keypad.getKey();
+  if (key) {
+    Serial.print("KEY: ");
+    Serial.println(key);
+
+    if (key == '#') {
+      keyboard_input = "";
+    } else {
+      keyboard_input += key;
+    }
+
+    if (keyboard_input.length() == 6) {
+      Serial.print("Пароль: ");
+      Serial.println(keyboard_input);
+
+      if (checkPassword(keyboard_input)) {
+        Serial.println("✅ ДОСТУП");
+      } else {
+        Serial.println("❌ НЕВЕРНЫЙ ПАРОЛЬ");
+      }
+
+      keyboard_input = "";
+    }
   }
-  pollReader(rfid1, 1, st1);
+
+  // RFID → только контроль наличия
   update_real_full();
+
+  // Аларм если павер пропал
   security_check();
-  keyboard_check();
+
   delay(100);
 }
